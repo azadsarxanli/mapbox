@@ -11,6 +11,37 @@ import { app } from './firebase';
 
 function App() {
   const mapRef = useRef(null);
+  const [fireData, setFireData] = useState();
+
+  const draw = new MapboxDraw({
+    displayControlsDefault: false,
+    controls: {
+      polygon: true,
+      trash: true
+    },
+    defaultMode: 'draw_polygon'
+  });
+
+  useEffect(() => {
+    fetch('https://mapbox-7fd95-default-rtdb.firebaseio.com/area.json')
+      .then((res) => res.json())
+      .then((data) => {
+        const firebaseDataKeys = Object.keys(data);
+        firebaseDataKeys.forEach((key) => {
+          console.log(data[key][0].geometry.coordinates[0]);
+          console.log(data[key][0].geometry.coordinates);
+          console.log([[-40, 37.5], [40, 37.5], [40, 30], [-40, -30], [-40, -37.5], [40, -37.5]]);
+          draw.add({
+            type: 'Feature',
+            properties: {},
+            geometry: {
+              type: 'LineString',
+              coordinates: data[key][0].geometry.coordinates[0],
+            }
+          });
+        });
+      })
+  }, [fireData])
 
   function initMapboxGLJS() {
     mapboxgl.accessToken = 'pk.eyJ1IjoiYWxpbWlyemF5ZWYiLCJhIjoiY2w4Y25vYTk5MG5kczNvcGN3NnhwZnJyNSJ9.usDar3ctZeObYcy5jes_4w';
@@ -34,18 +65,6 @@ function App() {
       .setLngLat([49.870, 40.38770])
       .addTo(map);
 
-    const draw = new MapboxDraw({
-      displayControlsDefault: false,
-      // Select which mapbox-gl-draw control buttons to add to the map.
-      controls: {
-        polygon: true,
-        trash: true
-      },
-      // Set mapbox-gl-draw to draw by default.
-      // The user does not have to click the polygon control button first.
-      defaultMode: 'draw_polygon'
-    });
-
     map.addControl(draw);
 
     map.on('draw.create', updateArea);
@@ -57,13 +76,22 @@ function App() {
       const answer = document.getElementById('calculated-area');
       if (data.features.length > 0) {
         const area = turf.area(data);
-        // Restrict the area to 2 decimal points.
         const rounded_area = Math.round(area * 100) / 100;
         answer.innerHTML = `<p><strong>${rounded_area}</strong></p><p>square meters</p>`;
       } else {
         answer.innerHTML = '';
         if (e.type !== 'draw.delete')
           alert('Click the map to draw a polygon.');
+      }
+
+      if (e.type === "draw.create") {
+        const requestOptions = {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(draw.getAll().features)
+        };
+        fetch('https://mapbox-7fd95-default-rtdb.firebaseio.com/area.json', requestOptions)
+          .then((res) => console.log(res))
       }
     }
   }
